@@ -42,3 +42,5 @@ if __name__ == "__main__":
         print(toon)
         # logging.info('Brought ' + aligned_name)
         pass
+    if files_cnt > 0:
+        os.system('gsutil -m cp ' + files_list + ' ' + aligned_dir)
