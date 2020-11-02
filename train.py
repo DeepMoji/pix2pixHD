@@ -4,9 +4,10 @@ import numpy as np
 import torch
 from torch.autograd import Variable
 from collections import OrderedDict
+import math
 from subprocess import call
 import fractions
-def lcm(a,b): return abs(a * b)/fractions.gcd(a,b) if a and b else 0
+def lcm(a,b): return abs(a * b)/math.gcd(a,b) if a and b else 0
 
 from options.train_options import TrainOptions
 from data.data_loader import CreateDataLoader
