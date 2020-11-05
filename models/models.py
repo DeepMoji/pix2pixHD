@@ -1,6 +1,6 @@
 import torch
 
-def create_model(opt):
+def create_model(opt, for_conversion=False):
     if opt.model == 'pix2pixHD':
         from .pix2pixHD_model import Pix2PixHDModel, InferenceModel
         if opt.isTrain:
@@ -10,7 +10,7 @@ def create_model(opt):
     else:
     	from .ui_model import UIModel
     	model = UIModel()
-    model.initialize(opt)
+    model.initialize(opt, for_conversion)
     if opt.verbose:
         print("model [%s] was created" % (model.name()))
 

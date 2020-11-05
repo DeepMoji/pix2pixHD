@@ -16,7 +16,7 @@ class Pix2PixHDModel(BaseModel):
             return [l for (l,f) in zip((g_gan,g_gan_feat,g_vgg,d_real,d_fake),flags) if f]
         return loss_filter
     
-    def initialize(self, opt):
+    def initialize(self, opt, for_conversion=False):
         BaseModel.initialize(self, opt)
         if opt.resize_or_crop != 'none' or not opt.isTrain: # when training at full res this causes OOM
             torch.backends.cudnn.benchmark = True
@@ -55,7 +55,10 @@ class Pix2PixHDModel(BaseModel):
         # load networks
         if not self.isTrain or opt.continue_train or opt.load_pretrain:
             pretrained_path = '' if not self.isTrain else opt.load_pretrain
-            self.load_network(self.netG, 'G', opt.which_epoch, pretrained_path)            
+            if for_conversion:
+                self.load_single_network(self.netG, opt.model_in)
+            else:
+                self.load_network(self.netG, 'G', opt.which_epoch, pretrained_path)
             if self.isTrain:
                 self.load_network(self.netD, 'D', opt.which_epoch, pretrained_path)  
             if self.gen_features:
