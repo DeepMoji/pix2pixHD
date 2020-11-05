@@ -4,6 +4,39 @@ import functools
 from torch.autograd import Variable
 import numpy as np
 
+
+###############################################################################
+# This is a hack to support coreml conversion
+###############################################################################
+class ReflectPad2d_rev(nn.Module):
+    '''
+    new reflectionpad2d
+        size : int (the size of padding)
+    '''
+    def __init__(self, size):
+        super().__init__()
+        self.size = size
+
+    def forward(self, x):
+        a = self.size
+        L_list, R_list = [], []
+        U_list, D_list = [], []
+        for i in range(a):#i:0, 1
+            l = x[:, :, :, (a-i):(a-i+1)]
+            L_list.append(l)
+            r = x[:, :, :, (i-a-1):(i-a)]
+            R_list.append(r)
+        L_list.append(x)
+        x = torch.cat(L_list+R_list[::-1], dim=3)
+        for i in range(a):
+            u = x[:, :, (a-i):(a-i+1), :]
+            U_list.append(u)
+            d = x[:, :, (i-a-1):(i-a), :]
+            D_list.append(d)
+        U_list.append(x)
+        x = torch.cat(U_list+D_list[::-1], dim=2)
+        return x
+
 ###############################################################################
 # Functions
 ###############################################################################
@@ -142,9 +175,13 @@ class LocalEnhancer(nn.Module):
         for n in range(1, n_local_enhancers+1):
             ### downsample            
             ngf_global = ngf * (2**(n_local_enhancers-n))
-            model_downsample = [nn.ReflectionPad2d(3), nn.Conv2d(input_nc, ngf_global, kernel_size=7, padding=0), 
+            # model_downsample = [nn.ReflectionPad2d(3), nn.Conv2d(input_nc, ngf_global, kernel_size=7, padding=0),
+            #                     norm_layer(ngf_global), nn.ReLU(True),
+            #                     nn.Conv2d(ngf_global, ngf_global * 2, kernel_size=3, stride=2, padding=1),
+            #                     norm_layer(ngf_global * 2), nn.ReLU(True)]
+            model_downsample = [ReflectPad2d_rev(3), nn.Conv2d(input_nc, ngf_global, kernel_size=7, padding=0),
                                 norm_layer(ngf_global), nn.ReLU(True),
-                                nn.Conv2d(ngf_global, ngf_global * 2, kernel_size=3, stride=2, padding=1), 
+                                nn.Conv2d(ngf_global, ngf_global * 2, kernel_size=3, stride=2, padding=1),
                                 norm_layer(ngf_global * 2), nn.ReLU(True)]
             ### residual blocks
             model_upsample = []
@@ -157,8 +194,10 @@ class LocalEnhancer(nn.Module):
 
             ### final convolution
             if n == n_local_enhancers:                
-                model_upsample += [nn.ReflectionPad2d(3), nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0), nn.Tanh()]                       
-            
+                # model_upsample += [nn.ReflectionPad2d(3), nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0), nn.Tanh()]
+                model_upsample += [ReflectPad2d_rev(3), nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0),
+                                   nn.Tanh()]
+
             setattr(self, 'model'+str(n)+'_1', nn.Sequential(*model_downsample))
             setattr(self, 'model'+str(n)+'_2', nn.Sequential(*model_upsample))                  
         
@@ -187,7 +226,8 @@ class GlobalGenerator(nn.Module):
         super(GlobalGenerator, self).__init__()        
         activation = nn.ReLU(True)        
 
-        model = [nn.ReflectionPad2d(3), nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0), norm_layer(ngf), activation]
+        # model = [nn.ReflectionPad2d(3), nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0), norm_layer(ngf), activation]
+        model = [ReflectPad2d_rev(3), nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0), norm_layer(ngf), activation]
         ### downsample
         for i in range(n_downsampling):
             mult = 2**i
@@ -204,7 +244,8 @@ class GlobalGenerator(nn.Module):
             mult = 2**(n_downsampling - i)
             model += [nn.ConvTranspose2d(ngf * mult, int(ngf * mult / 2), kernel_size=3, stride=2, padding=1, output_padding=1),
                        norm_layer(int(ngf * mult / 2)), activation]
-        model += [nn.ReflectionPad2d(3), nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0), nn.Tanh()]        
+        # model += [nn.ReflectionPad2d(3), nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0), nn.Tanh()]
+        model += [ReflectPad2d_rev(3), nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0), nn.Tanh()]
         self.model = nn.Sequential(*model)
             
     def forward(self, input):
@@ -220,9 +261,11 @@ class ResnetBlock(nn.Module):
         conv_block = []
         p = 0
         if padding_type == 'reflect':
-            conv_block += [nn.ReflectionPad2d(1)]
+            # conv_block += [nn.ReflectionPad2d(1)]
+            conv_block += [ReflectPad2d_rev]
         elif padding_type == 'replicate':
-            conv_block += [nn.ReplicationPad2d(1)]
+            # conv_block += [nn.ReplicationPad2d(1)]
+            conv_block += [ReflectPad2d_rev]
         elif padding_type == 'zero':
             p = 1
         else:
@@ -236,9 +279,11 @@ class ResnetBlock(nn.Module):
 
         p = 0
         if padding_type == 'reflect':
-            conv_block += [nn.ReflectionPad2d(1)]
+            # conv_block += [nn.ReflectionPad2d(1)]
+            conv_block += [ReflectPad2d_rev]
         elif padding_type == 'replicate':
-            conv_block += [nn.ReplicationPad2d(1)]
+            # conv_block += [nn.ReplicationPad2d(1)]
+            conv_block += [ReflectPad2d_rev]
         elif padding_type == 'zero':
             p = 1
         else:
@@ -257,8 +302,10 @@ class Encoder(nn.Module):
         super(Encoder, self).__init__()        
         self.output_nc = output_nc        
 
-        model = [nn.ReflectionPad2d(3), nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0), 
-                 norm_layer(ngf), nn.ReLU(True)]             
+        # model = [nn.ReflectionPad2d(3), nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0),
+        #          norm_layer(ngf), nn.ReLU(True)]
+        model = [ReflectPad2d_rev, nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0),
+                 norm_layer(ngf), nn.ReLU(True)]
         ### downsample
         for i in range(n_downsampling):
             mult = 2**i
@@ -271,7 +318,8 @@ class Encoder(nn.Module):
             model += [nn.ConvTranspose2d(ngf * mult, int(ngf * mult / 2), kernel_size=3, stride=2, padding=1, output_padding=1),
                        norm_layer(int(ngf * mult / 2)), nn.ReLU(True)]        
 
-        model += [nn.ReflectionPad2d(3), nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0), nn.Tanh()]
+        # model += [nn.ReflectionPad2d(3), nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0), nn.Tanh()]
+        model += [ReflectPad2d_rev(3), nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0), nn.Tanh()]
         self.model = nn.Sequential(*model) 
 
     def forward(self, input, inst):
