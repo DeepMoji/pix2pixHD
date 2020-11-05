@@ -262,10 +262,10 @@ class ResnetBlock(nn.Module):
         p = 0
         if padding_type == 'reflect':
             # conv_block += [nn.ReflectionPad2d(1)]
-            conv_block += [ReflectPad2d_rev]
+            conv_block += [ReflectPad2d_rev(1)]
         elif padding_type == 'replicate':
             # conv_block += [nn.ReplicationPad2d(1)]
-            conv_block += [ReflectPad2d_rev]
+            conv_block += [ReflectPad2d_rev(1)]
         elif padding_type == 'zero':
             p = 1
         else:
@@ -280,10 +280,10 @@ class ResnetBlock(nn.Module):
         p = 0
         if padding_type == 'reflect':
             # conv_block += [nn.ReflectionPad2d(1)]
-            conv_block += [ReflectPad2d_rev]
+            conv_block += [ReflectPad2d_rev(1)]
         elif padding_type == 'replicate':
             # conv_block += [nn.ReplicationPad2d(1)]
-            conv_block += [ReflectPad2d_rev]
+            conv_block += [ReflectPad2d_rev(1)]
         elif padding_type == 'zero':
             p = 1
         else:
@@ -304,7 +304,7 @@ class Encoder(nn.Module):
 
         # model = [nn.ReflectionPad2d(3), nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0),
         #          norm_layer(ngf), nn.ReLU(True)]
-        model = [ReflectPad2d_rev, nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0),
+        model = [ReflectPad2d_rev(3), nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0),
                  norm_layer(ngf), nn.ReLU(True)]
         ### downsample
         for i in range(n_downsampling):
