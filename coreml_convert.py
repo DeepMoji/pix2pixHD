@@ -45,17 +45,22 @@ if __name__ == '__main__':
     # Create model
     model = create_model(opt, for_conversion=True)
     # Convert model
-    torch.onnx.export(model.netG, data, "/home/ubuntu/deployment/pix2pixhd/checkpoints/label2city/pix2pix.onnx",
-                      input_names=['model_input'])
-    coreml_model = ct.converters.onnx.convert(model="/home/ubuntu/deployment/pix2pixhd/checkpoints/label2city/pix2pix.onnx")
 
-    from PIL import Image
-    example_image = Image.open("/home/ubuntu/code/pix2pixHD/datasets/toonify/test_A/00000_01.png").resize((256, 256))
-    # Make a prediction using Core ML
-    out_dict = model.predict({"model_input": example_image})
+    model.netG.eval()
+    model.netG(data)
+
+    if 0:
+        torch.onnx.export(model.netG, data, "/home/ubuntu/deployment/pix2pixhd/checkpoints/label2city/pix2pix.onnx",
+                      input_names=['model_input'])
+        coreml_model = ct.converters.onnx.convert(model="/home/ubuntu/deployment/pix2pixhd/checkpoints/label2city/pix2pix.onnx")
+
+        from PIL import Image
+        example_image = Image.open("/home/ubuntu/code/pix2pixHD/datasets/toonify/test_A/00000_01.png").resize((256, 256))
+        # Make a prediction using Core ML
+        out_dict = model.predict({"model_input": example_image})
 
     # This requires changing ReflectionPad2 https://github.com/apple/coremltools/issues/855
-    # coreml_model = convert_model(model.netG, data)
-    # coreml_model.save(opt.model_out)
+    coreml_model = convert_model(model.netG, data)
+    coreml_model.save(opt.model_out)
 
     pass
