@@ -2,6 +2,7 @@ import os
 from os import listdir
 from os.path import isfile, join
 import logging
+from time import sleep
 
 
 if __name__ == "__main__":
@@ -31,11 +32,12 @@ if __name__ == "__main__":
         # copy 200 files
         files_list = files_list + ' gs://deepmoji.appspot.com/mk_results/aligned_ffhq/' + aligned_name
         files_cnt = files_cnt + 1
-        # if files_cnt >= 200:
-        #     print('copying ...')
-        #     os.system('gsutil -m cp ' + files_list + ' ' + aligned_dir)
-        #     files_cnt = 0
-        #     files_list = ''
+        if files_cnt >= 1000:
+            print('copying ...')
+            os.system('gsutil -m cp ' + files_list + ' ' + aligned_dir)
+            files_cnt = 0
+            files_list = ''
+            sleep(300)
         # If not bring it
         # os.system('gsutil cp gs://deepmoji.appspot.com/mk_results/aligned_ffhq/' + aligned_name + ' ' +
         #           join(aligned_dir, aligned_name))
