@@ -41,7 +41,7 @@ if __name__ == "__main__":
         # If not bring it
         # os.system('gsutil cp gs://deepmoji.appspot.com/mk_results/aligned_ffhq/' + aligned_name + ' ' +
         #           join(aligned_dir, aligned_name))
-        # print(toon)
+        print(toon)
         # logging.info('Brought ' + aligned_name)
         pass
     if files_cnt > 0:
