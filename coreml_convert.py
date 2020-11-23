@@ -83,7 +83,7 @@ if __name__ == '__main__':
 
     # Get input parameters
     opt = get_parameters()
-    if opt.Convert32to16 == '':
+    if not opt.Convert32to16:
         convertr_pytorch_to_coreml(opt)
     else:
         convert_32_to_16_1(opt)
