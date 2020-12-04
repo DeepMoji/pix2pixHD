@@ -77,6 +77,9 @@ if __name__ == '__main__':
     print('Usage for pytorch to mlmodel:')
     print('coreml_convert --model_in PATH_G_MODEL --model_out PATH_OUT_MODEL --no_instance '
           '--label_nc 0 --resize_or_crop resize_and_crop --loadSize 512 --fineSize 512')
+    print('For 1024 conversion use:')
+    print('coreml_convert --model_in PATH_G_MODEL --model_out PATH_OUT_MODEL --no_instance '
+          '--label_nc 0 --netG local --ngf 32 --resize_or_crop resize_and_crop --loadSize 1024 --fineSize 1024')
 
     print('Usage for f32 to f16 conversion:')
     print('coreml_convert --model_in PATH_G_MODEL --model_out PATH_OUT_MODEL --Convert32to16')
