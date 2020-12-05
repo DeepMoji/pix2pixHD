@@ -5,7 +5,6 @@ import coremltools as ct
 from coremltools.models.neural_network import quantization_utils
 
 
-
 def get_parameters():
     """
     The function returns the parameters used for creating the coreml model

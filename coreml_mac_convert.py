@@ -41,35 +41,51 @@ def save_images(webpage, visuals):
         links.append(image_name)
     webpage.add_images(ims, txts, links, width=256)
 
+
 def compare_models():
-    img_folder = '/Users/michaelko/Code/pix2pixHD/datasets/toonify/test'
-    model_folder = '/Users/michaelko/Code/pix2pixHD/checkpoints/label2city'
-    res_dir = '/Users/michaelko/Code/pix2pixHD/results'
+    img_folder = '/Users/michaelko/Code/ngrok/images'
+    model_folder = '/Users/michaelko/Code/ngrok/checkpoints/label2city'
+    res_dir = '/Users/michaelko/Code/ngrok/res'
 
     web_dir = os.path.join(res_dir, 'comparison')
     webpage = html.HTML(web_dir, 'Comparison')
 
     # visuals = OrderedDict([('input_label', img1), ('synthesized_image', img2)])
-    model_files = [f for f in listdir(model_folder) if isfile(join(model_folder, f))]
+    model_files = []    #[f for f in listdir(model_folder) if isfile(join(model_folder, f))]
+
+    for f in listdir(model_folder):
+        if not isfile(join(model_folder, f)):
+            continue
+        if f[0] == '.':
+            continue
+        model_files.append(f)
+
     # Open models
     models = []
     for model_name in model_files:
+        if model_name[0] == '.':
+            continue
+        print('Loading ', model_name)
         models.append(ct.models.MLModel(join(model_folder, model_name)))
 
     img_files = [f for f in listdir(img_folder) if isfile(join(img_folder, f))]
     for img_name in img_files:
-        img = Image.open(join(img_folder, img_name))
-        img = img.resize((512, 512))
+        if img_name[0] == '.':
+            continue
+        print('Start image ', img_name)
+        img_orig = Image.open(join(img_folder, img_name))
         results = []
         for model in models:
+            desc = model.get_spec().description
+            img = img_orig.resize((desc.input[0].type.imageType.height, desc.input[0].type.imageType.width))
             res = model.predict({'image_input': img})
-            r = res['730'][0, 0, :, :]
-            g = res['730'][0, 1, :, :]
-            b = res['730'][0, 2, :, :]
-            rgb = np.zeros((512, 512, 3))
-            rgb[:, :, 0] = b
-            rgb[:, :, 1] = g
-            rgb[:, :, 2] = r
+            r = res[list(res.keys())[0]][0, 0, :, :]
+            g = res[list(res.keys())[0]][0, 1, :, :]
+            b = res[list(res.keys())[0]][0, 2, :, :]
+            rgb = np.zeros((desc.input[0].type.imageType.height, desc.input[0].type.imageType.width, 3))
+            rgb[:, :, 0] = 0.5*(b + 1.0)
+            rgb[:, :, 1] = 0.5*(g + 1.0)
+            rgb[:, :, 2] = 0.5*(r + 1.0)
             results.append(rgb*255)
 
         visuals = OrderedDict([(model_files[0][:-7] + img_name, results[0]),
@@ -85,23 +101,26 @@ def compare_models():
 
 def single_test():
     pass
-    img_name = '/Users/michaelko/Code/pix2pixHD/results/linux_160/images/12400_01_input_label.jpg'
-    model_name = '/Users/michaelko/Code/pix2pixHD/checkpoints/label2city/latest_net_G.mlmodel'
+    img_name = '/Users/michaelko/Code/ngrok/images/35000_01.png'
+    model_name = '/Users/michaelko/Code/ngrok/checkpoints/label2city/70_net_G_4.mlmodel'
     model = ct.models.MLModel(model_name)
 
+    desc = model.get_spec().description
+    # spec.WhichOneof()
+
     img = Image.open(img_name)
-    img = img.resize((512, 512))
+    img = img.resize((desc.input[0].type.imageType.height, desc.input[0].type.imageType.width))
 
     res = model.predict({'image_input': img})
-    r = res['730'][0, 0, :, :]
-    g = res['730'][0, 1, :, :]
-    b = res['730'][0, 2, :, :]
-    rgb = np.zeros((512, 512, 3))
+    r = res[list(res.keys())[0]][0, 0, :, :]
+    g = res[list(res.keys())[0]][0, 1, :, :]
+    b = res[list(res.keys())[0]][0, 2, :, :]
+    rgb = np.zeros((desc.input[0].type.imageType.height, desc.input[0].type.imageType.width, 3))
     rgb[:, :, 0] = 0.5 * (b + 1.0)
     rgb[:, :, 1] = 0.5 * (g + 1.0)
     rgb[:, :, 2] = 0.5 * (r + 1.0)
 
-    cv.imwrite('/Users/michaelko/Downloads/example_011.png', 255*rgb)
+    cv.imwrite('/Users/michaelko/Downloads/example_012.png', 255*rgb)
 
 
 # class LeNet(nn.Module):
@@ -149,8 +168,8 @@ if __name__ == '__main__':
     print('coreml_convert --model_in PATH_G_MODEL --model_out PATH_OUT_MODEL --Convert32to16')
 
     # Get input parameters
-    convert_32_to_16_1()
-    # compare_models()
+    # convert_32_to_16_1()
+    compare_models()
     # single_test()
 
     # pruning_example()
