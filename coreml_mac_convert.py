@@ -69,10 +69,12 @@ def compare_models():
         models.append(ct.models.MLModel(join(model_folder, model_name)))
 
     img_files = [f for f in listdir(img_folder) if isfile(join(img_folder, f))]
+    cnt = 0
     for img_name in img_files:
         if img_name[0] == '.':
             continue
-        print('Start image ', img_name)
+        print('Start image ', img_name, ' ', cnt)
+        cnt = cnt + 1
         img_orig = Image.open(join(img_folder, img_name))
         results = []
         for model in models:
@@ -88,12 +90,15 @@ def compare_models():
             rgb[:, :, 2] = 0.5*(r + 1.0)
             results.append(rgb*255)
 
+        # visuals = OrderedDict([(model_files[0][:-7] + img_name, results[0]),
+        #                        (model_files[1][:-7] + img_name, results[1]),
+        #                        (model_files[2][:-7] + img_name, results[2]),
+        #                        (model_files[3][:-7] + img_name, results[3]),
+        #                        (model_files[4][:-7] + img_name, results[4]),
+        #                        ('orig' + img_name,cv.cvtColor(np.array(img), cv.COLOR_RGB2BGR))])
         visuals = OrderedDict([(model_files[0][:-7] + img_name, results[0]),
                                (model_files[1][:-7] + img_name, results[1]),
-                               (model_files[2][:-7] + img_name, results[2]),
-                               (model_files[3][:-7] + img_name, results[3]),
-                               (model_files[4][:-7] + img_name, results[4]),
-                               ('orig' + img_name,cv.cvtColor(np.array(img), cv.COLOR_RGB2BGR))])
+                               ('orig' + img_name, cv.cvtColor(np.array(img), cv.COLOR_RGB2BGR))])
         save_images(webpage, visuals)
 
     webpage.save()
@@ -101,8 +106,8 @@ def compare_models():
 
 def single_test():
     pass
-    img_name = '/Users/michaelko/Code/ngrok/images/35000_01.png'
-    model_name = '/Users/michaelko/Code/ngrok/checkpoints/label2city/70_net_G_4.mlmodel'
+    img_name = '/Users/michaelko/Code/ngrok/images/35031_01.png'
+    model_name = '/Users/michaelko/Code/ngrok/checkpoints/label2city/90_net_G.mlmodel'
     model = ct.models.MLModel(model_name)
 
     desc = model.get_spec().description

@@ -5,6 +5,9 @@ import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
 import torch.nn.utils.prune as prune
+import coremltools as ct
+
+from coremltools.models.neural_network.quantization_utils import QuantizedLayerSelector
 
 from torchsummary import summary
 
@@ -140,32 +143,33 @@ def prune_tutorial():
     network = Net()
     network.load_state_dict(torch.load('/home/ubuntu/code/mnist/results/model.pth'))
 
-    modules = [module for module in network.modules()]
-    print(modules[1:])
-    print(' ----------------')
-    # Print summary
-    # device = 'cuda'
-    # summary(network.to(device), (1, 28, 28))
-    num_weights, num_biases = compute_num_parameters(network)
+    if 0:
+        modules = [module for module in network.modules()]
+        print(modules[1:])
+        print(' ----------------')
+        # Print summary
+        # device = 'cuda'
+        # summary(network.to(device), (1, 28, 28))
+        num_weights, num_biases = compute_num_parameters(network)
 
-    for cnt, module in enumerate(network.modules()):
-        if cnt != 1:
-            continue
-        prune.random_unstructured(module, name="weight", amount=0.3)
-        prune.l1_unstructured(module, name="bias", amount=3)
-        # The below makes pruning permanent
-        prune.remove(module, 'weight')
-        prune.remove(module, 'bias')
-        # print(list(module.named_parameters()))
-        # print(list(module.named_buffers()))
+        for cnt, module in enumerate(network.modules()):
+            if cnt != 1:
+                continue
+            prune.random_unstructured(module, name="weight", amount=0.3)
+            prune.l1_unstructured(module, name="bias", amount=3)
+            # The below makes pruning permanent
+            prune.remove(module, 'weight')
+            prune.remove(module, 'bias')
+            # print(list(module.named_parameters()))
+            # print(list(module.named_buffers()))
 
-    # pass
-    for cnt, module in enumerate(network.modules()):
-        if cnt != 1:
-            continue
-        print(list(module.named_parameters()))
-    torch.save(network.state_dict(), '/home/ubuntu/code/mnist/results/model_pr.pth')
-    torch.save(network, '/home/ubuntu/code/mnist/results/model_pr_full.pth')
+        # pass
+        for cnt, module in enumerate(network.modules()):
+            if cnt != 1:
+                continue
+            print(list(module.named_parameters()))
+        torch.save(network.state_dict(), '/home/ubuntu/code/mnist/results/model_pr.pth')
+        torch.save(network, '/home/ubuntu/code/mnist/results/model_pr_full.pth')
 
     test_loader = torch.utils.data.DataLoader(
         torchvision.datasets.MNIST('/home/ubuntu/code/mnist/images', train=False, download=True,
@@ -178,6 +182,24 @@ def prune_tutorial():
     test_losses = []
     test(network, test_loader, test_losses)
 
+    test_data = torch.rand(1, 1, 28, 28)
+    network.eval()
+    traced_model = torch.jit.trace(network, test_data)
+
+    ct_model = ct.convert(
+        traced_model,
+        # inputs=[ct.TensorType(name="input1", shape=data['B'].shape)]  # name "input_1" is used in 'quickstart'
+        inputs=[ct.ImageType(name="image_input", shape=test_data.shape)]  # name "input_1" is used in 'quickstart'
+    )
+    ct_model.save('/home/ubuntu/code/mnist/results/model_full.mlmodel')
+
+    pass
+
+def quantization_tests():
+    """
+    Quantize the coreml mode in a smart way
+    :return:
+    """
     pass
 
 if __name__ == '__main__':
