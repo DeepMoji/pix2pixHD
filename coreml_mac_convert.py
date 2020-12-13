@@ -42,8 +42,37 @@ def save_images(webpage, visuals):
     webpage.add_images(ims, txts, links, width=256)
 
 
+def build_web_page():
+    webpage = html.HTML('/Users/michaelko/Code/ngrok/results', 'results')
+
+    visuals = OrderedDict([('FFHQ_Original image', cv.imread('/Users/michaelko/Downloads/mk_results_aligned_ffhq_00537_01.png')),
+                           ('FFHQ_SLOW TOON', cv.imread('/Users/michaelko/Downloads/mk_results_tooned_images_00537_01-toon.jpg')),
+                           ('FFHQ_DeepMoji 1024_1', cv.imread('/Users/michaelko/Downloads/out_90_1024.png')),
+                           ('FFHQ_DeepMoji 1024_2', cv.imread('/Users/michaelko/Downloads/mkres_20_1024.png')),
+                           ('FFHQ_DeepMoji 512_1', cv.imread('/Users/michaelko/Downloads/mkres_160_512.png')),
+                           ('FFHQ_DeepMoji 512_2', cv.imread('/Users/michaelko/Downloads/mkres_60_512.png')),
+                           ('FFHQ_API', cv.imread('/Users/michaelko/Downloads/output_00537.jpg'))])
+    save_images(webpage, visuals)
+
+    visuals = OrderedDict(
+        [('Original image', cv.imread('/Users/michaelko/Downloads/test_photo.png')),
+         ('SLOW TOON', cv.imread('/Users/michaelko/Downloads/slow_toon.jpg')),
+         ('DeepMoji 1024_1', cv.imread('/Users/michaelko/Downloads/test_photo_90_1024.png')),
+         ('DeepMoji 1024_2', cv.imread('/Users/michaelko/Downloads/test_photo_20_1024.png')),
+         ('DeepMoji 512_1', cv.imread('/Users/michaelko/Downloads/test_photo_160_512.png')),
+         ('DeepMoji 512_2', cv.imread('/Users/michaelko/Downloads/test_photo_60_512.png')),
+         ('API', cv.imread('/Users/michaelko/Downloads/test_photo_api_out.jpg'))])
+    save_images(webpage, visuals)
+
+    webpage.save()
+
+def compare_models_1():
+    pass
+
+
 def compare_models():
-    img_folder = '/Users/michaelko/Code/ngrok/images'
+    img_folder = '/Users/michaelko/Code/ngrok/images_test'
+    img_api_folder = '/Users/michaelko/Code/ngrok/images_test_res'
     model_folder = '/Users/michaelko/Code/ngrok/checkpoints/label2city'
     res_dir = '/Users/michaelko/Code/ngrok/res'
 
@@ -90,15 +119,24 @@ def compare_models():
             rgb[:, :, 2] = 0.5*(r + 1.0)
             results.append(rgb*255)
 
+        api_img_name = img_name[0:-7] + '.jpg'
+        visuals = OrderedDict([('orig' + img_name,cv.cvtColor(np.array(img_orig), cv.COLOR_RGB2BGR)),
+                               ('api' + img_name, cv.imread(join(img_api_folder, api_img_name))),
+                                (model_files[0][:-7] + img_name, results[0]),
+                                (model_files[1][:-7] + img_name, results[1]),
+                                (model_files[2][:-7] + img_name, results[2]),
+                                (model_files[3][:-7] + img_name, results[3]),
+                                (model_files[4][:-7] + img_name, results[4])])
+
         # visuals = OrderedDict([(model_files[0][:-7] + img_name, results[0]),
         #                        (model_files[1][:-7] + img_name, results[1]),
         #                        (model_files[2][:-7] + img_name, results[2]),
         #                        (model_files[3][:-7] + img_name, results[3]),
         #                        (model_files[4][:-7] + img_name, results[4]),
         #                        ('orig' + img_name,cv.cvtColor(np.array(img), cv.COLOR_RGB2BGR))])
-        visuals = OrderedDict([(model_files[0][:-7] + img_name, results[0]),
-                               (model_files[1][:-7] + img_name, results[1]),
-                               ('orig' + img_name, cv.cvtColor(np.array(img), cv.COLOR_RGB2BGR))])
+        # visuals = OrderedDict([(model_files[0][:-7] + img_name, results[0]),
+        #                        (model_files[1][:-7] + img_name, results[1]),
+        #                        ('orig' + img_name, cv.cvtColor(np.array(img), cv.COLOR_RGB2BGR))])
         save_images(webpage, visuals)
 
     webpage.save()
@@ -106,8 +144,8 @@ def compare_models():
 
 def single_test():
     pass
-    img_name = '/Users/michaelko/Code/ngrok/images/35031_01.png'
-    model_name = '/Users/michaelko/Code/ngrok/checkpoints/label2city/90_net_G.mlmodel'
+    img_name = '/Users/michaelko/Downloads/test_photo.png'
+    model_name = '/Users/michaelko/Code/ngrok/checkpoints/label2city/20_net_G_1024.mlmodel'
     model = ct.models.MLModel(model_name)
 
     desc = model.get_spec().description
@@ -125,7 +163,7 @@ def single_test():
     rgb[:, :, 1] = 0.5 * (g + 1.0)
     rgb[:, :, 2] = 0.5 * (r + 1.0)
 
-    cv.imwrite('/Users/michaelko/Downloads/example_012.png', 255*rgb)
+    cv.imwrite('/Users/michaelko/Downloads/test_photo_20_1024.png', 255*rgb)
 
 
 # class LeNet(nn.Module):
@@ -176,7 +214,7 @@ if __name__ == '__main__':
     # convert_32_to_16_1()
     compare_models()
     # single_test()
-
+    # build_web_page()
     # pruning_example()
 
 
