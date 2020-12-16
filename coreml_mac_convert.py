@@ -9,6 +9,7 @@ from os.path import isfile, join
 from PIL import Image
 import numpy as np
 import cv2 as cv
+from face_postprocessing import sharpen_face
 # from torch import nn
 # import torch.nn.functional as F
 
@@ -142,6 +143,75 @@ def compare_models():
     webpage.save()
 
 
+def compare_models1():
+    img_folder = '/Users/michaelko/Code/ngrok/images_test'
+    img_api_folder = '/Users/michaelko/Code/ngrok/images_test_res'
+    model_folder = '/Users/michaelko/Code/ngrok/checkpoints/final_model'
+    res_dir = '/Users/michaelko/Code/ngrok/res1'
+
+    web_dir = os.path.join(res_dir, 'comparison')
+    webpage = html.HTML(web_dir, 'Comparison')
+
+    # visuals = OrderedDict([('input_label', img1), ('synthesized_image', img2)])
+    model_files = []    #[f for f in listdir(model_folder) if isfile(join(model_folder, f))]
+
+    for f in listdir(model_folder):
+        if not isfile(join(model_folder, f)):
+            continue
+        if f[0] == '.':
+            continue
+        model_files.append(f)
+
+    # Open models
+    models = []
+    for model_name in model_files:
+        if model_name[0] == '.':
+            continue
+        print('Loading ', model_name)
+        models.append(ct.models.MLModel(join(model_folder, model_name)))
+
+    img_files = [f for f in listdir(img_folder) if isfile(join(img_folder, f))]
+    cnt = 0
+    for img_name in img_files:
+        if img_name[0] == '.':
+            continue
+        print('Start image ', img_name, ' ', cnt)
+        cnt = cnt + 1
+        img_orig = Image.open(join(img_folder, img_name))
+        results = []
+        for model in models:
+            desc = model.get_spec().description
+            img = img_orig.resize((desc.input[0].type.imageType.height, desc.input[0].type.imageType.width))
+            res = model.predict({'image_input': img})
+            r = res[list(res.keys())[0]][0, 0, :, :]
+            g = res[list(res.keys())[0]][0, 1, :, :]
+            b = res[list(res.keys())[0]][0, 2, :, :]
+            rgb = np.zeros((desc.input[0].type.imageType.height, desc.input[0].type.imageType.width, 3))
+            rgb[:, :, 0] = 0.5*(b + 1.0)
+            rgb[:, :, 1] = 0.5*(g + 1.0)
+            rgb[:, :, 2] = 0.5*(r + 1.0)
+            results.append(rgb*255)
+            results.append(sharpen_face(results[0]))
+
+        api_img_name = img_name[0:-7] + '.jpg'
+        visuals = OrderedDict([('orig' + img_name,cv.cvtColor(np.array(img_orig), cv.COLOR_RGB2BGR)),
+                               ('api' + img_name, cv.imread(join(img_api_folder, api_img_name))),
+                                (model_files[0][:-7] + img_name, results[0]),
+                                ('sharp.' + model_files[0][:-7] + img_name, results[1])])
+
+        # visuals = OrderedDict([(model_files[0][:-7] + img_name, results[0]),
+        #                        (model_files[1][:-7] + img_name, results[1]),
+        #                        (model_files[2][:-7] + img_name, results[2]),
+        #                        (model_files[3][:-7] + img_name, results[3]),
+        #                        (model_files[4][:-7] + img_name, results[4]),
+        #                        ('orig' + img_name,cv.cvtColor(np.array(img), cv.COLOR_RGB2BGR))])
+        # visuals = OrderedDict([(model_files[0][:-7] + img_name, results[0]),
+        #                        (model_files[1][:-7] + img_name, results[1]),
+        #                        ('orig' + img_name, cv.cvtColor(np.array(img), cv.COLOR_RGB2BGR))])
+        save_images(webpage, visuals)
+
+    webpage.save()
+
 def single_test():
     pass
     img_name = '/Users/michaelko/Downloads/test_photo.png'
@@ -212,7 +282,7 @@ if __name__ == '__main__':
 
     # Get input parameters
     # convert_32_to_16_1()
-    compare_models()
+    compare_models1()
     # single_test()
     # build_web_page()
     # pruning_example()
