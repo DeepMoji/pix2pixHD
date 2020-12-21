@@ -10,18 +10,53 @@ from PIL import Image
 import numpy as np
 import cv2 as cv
 import os, sys
-
+import torch.optim as optim
 import torch
 import torchvision
 import torch.nn.functional as F
+import torch.nn as nn
+
 
 # from ../minimalml import quantize_coreml_network
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + '/code')
 from minimalml.mkml_quantization import quantize_coreml_network
+from minimalml.mkml_model_utilities import get_layer_weight_stats
+from minimalml.mkml_model_utilities import create_detailed_quant_values
+from minimalml.mkml_model_utilities import prunableLayers
 
 
-batch_size_test = 1
+# batch_size_test = 1
 
+n_epochs = 3
+batch_size_train = 64
+batch_size_test = 1000
+learning_rate = 0.01
+momentum = 0.5
+log_interval = 10
+
+
+class Net(nn.Module):
+    """
+    Toy neural network
+    """
+    def __init__(self):
+        super(Net, self).__init__()
+        self.conv1 = nn.Conv2d(1, 10, kernel_size=5)
+        self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
+        self.conv2_drop = nn.Dropout2d()
+        self.fc1 = nn.Linear(320, 50)
+        self.fc2 = nn.Linear(50, 10)
+
+    def forward(self, x):
+        x = F.relu(F.max_pool2d(self.conv1(x), 2))
+        x = F.relu(F.max_pool2d(self.conv2_drop(self.conv2(x)), 2))
+        x = x.view(-1, 320)
+        x = F.relu(self.fc1(x))
+        x = F.dropout(x, training=self.training)
+        x = self.fc2(x)
+        return F.softmax(x)
+        # return F.log_softmax(x)
 
 def get_layer_types(layers):
     layer_types = []
@@ -40,14 +75,34 @@ def get_layers(model):
     return layers
 
 
+def check_toy_model(model_name, dataset_images):
+
+    model_in = ct.models.MLModel(model_name)
+    test_loader = torch.utils.data.DataLoader(
+        torchvision.datasets.MNIST(dataset_images, train=False, download=True,
+                                   transform=torchvision.transforms.Compose([
+                                       torchvision.transforms.ToTensor()])), batch_size=1)
+    correct = 0
+    total = 0
+    for data, target in test_loader:
+        output = model_in.predict({'image_input': Image.fromarray(np.uint8(data[0, 0, :, :].numpy() * 255))})
+        output = output['72']
+        if target.numpy()[0] == np.argmax(output):
+            correct = correct + 1
+        total = total + 1
+        if total % 100 == 0:
+            print(total)
+    print('Accuracy is ', correct / total)
+    return correct / total
+
 def check_models():
-    # model_in = ct.models.MLModel('/Users/michaelko/Code/ngrok/checkpoints/toy/model_quant8.mlmodel')
-    model_in = ct.models.MLModel('/Users/michaelko/Code/ngrok/checkpoints/toy/model_full_norm_simple.mlmodel')
+    model_in = ct.models.MLModel('/Users/michaelko/Code/ngrok/checkpoints/toy/model_quant.mlmodel')
+    # model_in = ct.models.MLModel('/Users/michaelko/Code/ngrok/checkpoints/toy/model_full_norm_simple.mlmodel')
 
     test_loader = torch.utils.data.DataLoader(
         torchvision.datasets.MNIST('/Users/michaelko/Code/ngrok/mnist/images', train=False, download=True,
                                    transform=torchvision.transforms.Compose([
-                                       torchvision.transforms.ToTensor()])), batch_size=batch_size_test)
+                                       torchvision.transforms.ToTensor()])), batch_size=1)
         # torchvision.datasets.MNIST('/Users/michaelko/Code/ngrok/mnist/images', train=False, download=True,
         #                        transform=torchvision.transforms.Compose([
         #                            torchvision.transforms.ToTensor(),
@@ -61,7 +116,7 @@ def check_models():
     # pred = np.load('/Users/michaelko/Code/ngrok/checkpoints/toy/pred1000.npy')
     for data, target in test_loader:
         output = model_in.predict({'image_input': Image.fromarray(np.uint8(data[0, 0, :, :].numpy() * 255))})
-        output = output['70']
+        output = output['72']
         if target.numpy()[0] == np.argmax(output):
             correct = correct + 1
         # if np.argmax(output) != pred[total]:
@@ -87,8 +142,10 @@ def create_models():
     layers = get_layers(model_in)
     layer_types = get_layer_types(layers)
     print(layer_types)
-    model_fp16 = quantization_utils.quantize_weights(model_in, nbits=8)
-    model_fp16.save('/Users/michaelko/Code/ngrok/checkpoints/toy/model_quant8.mlmodel')
+    model_fp16 = quantization_utils.quantize_weights(model_in, nbits=3)
+    model_fp16.save('/Users/michaelko/Code/ngrok/checkpoints/toy/model_quant3.mlmodel')
+
+    return
 
     # Example 1 - quantize weights differently for each layers
     num_layers = len(layer_types)
@@ -110,9 +167,259 @@ def create_models():
     model_in = ct.models.MLModel('/Users/michaelko/Code/ngrok/checkpoints/toy/model_quant8.mlmodel')
     pass
 
+def compute_gradients(names_list):
+    """
+    The function computes average gradient magnitude for all weights
+    :param: names_list is a list of names as obtained from coreml stats get_layer_weight_stats(model_in) function
+            The list may include many empty cells. The list has a member for each network sub part, even such as
+            activation and dropout. Obviously, many of them are empty
+            names_list
+    [['bias', 'weights'], [], [], ['bias', 'weights'], [], [], [], ['bias', 'weights'], [], ['bias', 'weights'], [], []]
+    :return:
+    """
+
+    # Get the number of non zero parts
+    non_zero_num = [1 if len(name) > 0 else 0 for name in names_list]
+    test_loader = torch.utils.data.DataLoader(
+        torchvision.datasets.MNIST('/Users/michaelko/Code/ngrok/mnist/images', train=False, download=True,
+                                   transform=torchvision.transforms.Compose([
+                                       torchvision.transforms.ToTensor(),
+                                       torchvision.transforms.Normalize(
+                                           (0.5,), (0.5,))
+                                   ])),
+        batch_size=1, shuffle=True)
+
+    network = Net()
+    network.load_state_dict(torch.load('/Users/michaelko/Code/ngrok/checkpoints/toy/model_mnist.pth'))
+    network.eval()
+
+    # Get
+    module_names = [k for k in network.named_children()]
+    is_prunable = np.zeros(len(module_names))
+    return_list = []
+    for cnt, module in enumerate(module_names):
+        found = False
+        for k, good_module in enumerate(prunableLayers.classes):
+            if isinstance(module[1], good_module):
+                found = True
+                break
+        if found:
+            is_prunable[cnt] = 1
+            return_list.append(np.zeros(len(prunableLayers.translateToCoreML[k])))
+        else:
+            return_list.append([])
+    # Check the number of prunable models
+    if np.sum(is_prunable) != np.sum(np.array(non_zero_num)):
+        print('PROBLEMS')
+
+    # Go over all test data
+    total_data = 0
+    for data, target in test_loader:
+        output = network(data)
+        loss = F.nll_loss(output, target)
+        loss.backward()
+        total_data = total_data + 1
+        if total_data % 150 == 0:
+            print(total_data)
+        # for each image, compute the average value of abs(gradient * w) for all weights and for all biases
+        for k in range(len(is_prunable)):
+            if is_prunable[k] == 0:
+                continue
+            # Get the type
+            if type(module_names[k][1]) not in prunableLayers.classes:
+                raise Exception('No such network class')
+            ind = prunableLayers.classes.index(type(module_names[k][1]))
+            # Go over all appropriate network parts
+            for p_cnt, part_name in enumerate(prunableLayers.translateToCoreML[ind]):
+                value = getattr(getattr(network, module_names[k][0]), part_name)
+                return_list[k][p_cnt] = return_list[k][p_cnt] + np.mean(np.abs(value.detach() * value.grad.detach()).numpy())
+
+    for k in range(len(return_list)):
+        if len(return_list[k]) == 0:
+            continue
+        return_list[k] = return_list[k] / total_data
+
+    return return_list
+
+
+def test(network, test_loader, test_losses):
+    network.eval()
+    test_loss = 0
+    correct = 0
+    with torch.no_grad():
+        for data, target in test_loader:
+            output = network(data)
+            test_loss += F.nll_loss(output, target, size_average=False).item()
+            pred = output.data.max(1, keepdim=True)[1]
+            correct += pred.eq(target.data.view_as(pred)).sum()
+    test_loss /= len(test_loader.dataset)
+    test_losses.append(test_loss)
+    print('\nTest set: Avg. loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+        test_loss, correct, len(test_loader.dataset),
+        100. * correct / len(test_loader.dataset)))
+
+
+def train(epoch, network, train_loader, train_losses, train_counter, optimizer):
+    # specify you will be training
+    network.train()
+    for batch_idx, (data, target) in enumerate(train_loader):
+        optimizer.zero_grad()
+        output = network(data)
+        loss = F.nll_loss(output, target)
+        loss.backward()
+        optimizer.step()
+        if batch_idx % log_interval == 0:
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                epoch, batch_idx * len(data), len(train_loader.dataset),
+                100. * batch_idx / len(train_loader), loss.item()))
+        train_losses.append(loss.item())
+        train_counter.append((batch_idx*batch_size_train) + ((epoch-1)*len(train_loader.dataset)))
+        torch.save(network.state_dict(), '/Users/michaelko/Code/ngrok/checkpoints/toy/model_mnist.pth')
+        # torch.save(optimizer.state_dict(), '/home/ubuntu/code/mnist/results/optimizer.pth')
+
+def train_loop():
+    train_loader = torch.utils.data.DataLoader(
+        torchvision.datasets.MNIST('/Users/michaelko/Code/ngrok/mnist/images', train=True, download=True,
+                                   transform=torchvision.transforms.Compose([
+                                       torchvision.transforms.ToTensor(),
+                                       torchvision.transforms.Normalize(
+                                           # (0.1307,), (0.3081,))
+                                           (0.5,), (0.5,))
+                                   ])),
+        batch_size=batch_size_train, shuffle=True)
+
+    test_loader = torch.utils.data.DataLoader(
+        torchvision.datasets.MNIST('/Users/michaelko/Code/ngrok/mnist/images', train=False, download=True,
+                                   transform=torchvision.transforms.Compose([
+                                       torchvision.transforms.ToTensor(),
+                                       torchvision.transforms.Normalize(
+                                           (0.5,), (0.5,))
+                                   ])),
+        batch_size=batch_size_test, shuffle=True)
+
+    network = Net()
+    # network = SimpleNet()
+    optimizer = optim.SGD(network.parameters(), lr=learning_rate,
+                          momentum=momentum)
+
+    train_losses = []
+    train_counter = []
+    test_losses = []
+    test_counter = [i * len(train_loader.dataset) for i in range(n_epochs + 1)]
+
+    test(network, test_loader, test_losses)
+    for epoch in range(1, n_epochs + 1):
+        train(epoch, network, train_loader, train_losses, train_counter, optimizer)
+        test(network, test_loader, test_losses)
+
+def quantize_toy_model():
+    model_in = ct.models.MLModel('/Users/michaelko/Code/ngrok/checkpoints/toy/model_quant.mlmodel')
+    layers = get_layers(model_in)
+    layer_types = get_layer_types(layers)
+    stats, names_list = get_layer_weight_stats(model_in)
+    quant_dict = create_detailed_quant_values(stats, names_list)
+    qmodel = quantize_coreml_network(model_in, quant_dict)
+    qmodel.save('/Users/michaelko/Code/ngrok/checkpoints/toy/model_quant1.mlmodel')
+
+    check_toy_model('/Users/michaelko/Code/ngrok/checkpoints/toy/model_quant1.mlmodel',
+                    '/Users/michaelko/Code/ngrok/mnist/images')
+
+def quantize_toonify_models():
+    # model_name = '/Users/michaelko/Code/ngrok/checkpoints/label2city/160_net_G_512.mlmodel'
+    model_name = '/home/ubuntu/code/pix2pixHD/checkpoints/label2city_512p/100_net_G_512.mlmodel'
+    # Get layers
+    model = ct.models.MLModel(model_name)
+    layers = get_layers(model)[0]
+    stats, names_list = get_layer_weight_stats(model)
+    quant_dict = create_detailed_quant_values(stats, names_list)
+    for layer in layers:
+        pass
+        print('1')
+    pass
+
+    print('Done')
+
+def prune_tutorial():
+    network = Net()
+    # network = SimpleNet()
+    # network.load_state_dict(torch.load('/home/ubuntu/code/mnist/results/model.pth'))
+    network.load_state_dict(torch.load('/Users/michaelko/Code/ngrok/checkpoints/toy/model_mnist.pth'))
+
+    test_loader = torch.utils.data.DataLoader(
+        torchvision.datasets.MNIST('/Users/michaelko/Code/ngrok/mnist/images', train=False, download=True,
+                                   transform=torchvision.transforms.Compose([
+                                       torchvision.transforms.ToTensor(),
+                                       torchvision.transforms.Normalize(
+                                           mean=(0.5,), std=(0.5,))
+                                   ])),
+        batch_size=batch_size_test)
+    test_losses = []
+    test(network, test_loader, test_losses)
+
+    test_data = torch.rand(1, 1, 28, 28)
+    network.eval()
+    traced_model = torch.jit.trace(network, test_data)
+
+    ct_model = ct.convert(
+        traced_model,
+        # inputs=[ct.TensorType(name="input1", shape=data['B'].shape)]  # name "input_1" is used in 'quickstart'
+        # inputs=[ct.ImageType(name="image_input", shape=test_data.shape)]  # name "input_1" is used in 'quickstart'
+        # name "input_1" is used in 'quickstart'
+        # inputs=[ct.ImageType(name="image_input", shape=test_data.shape, bias=0.1307/0.3081,
+        #                      scale=1.0 / (255 * 0.3081), color_layout='G')]
+        inputs=[ct.ImageType(name="image_input", shape=test_data.shape, bias=-1.0, scale=1.0/127.5, color_layout='G')]
+    )
+    # ct_model.save('/home/ubuntu/code/mnist/results/model_full.mlmodel')
+    ct_model.save('/Users/michaelko/Code/ngrok/checkpoints/toy/model_quant.mlmodel')
+    # ct_model.save('/home/ubuntu/code/mnist/results/model_full_norm_simple_noscale.mlmodel')
+
+    pass
 
 if __name__ == '__main__':
     print('Pruning test')
-    #    create_models()
-    check_models()
+    # train_loop()
+
+    # ---------------------------------------------------------------------------------------------------------------- #
+    model_in = ct.models.MLModel('/Users/michaelko/Code/ngrok/checkpoints/toy/model_quant.mlmodel')
+    layers = get_layers(model_in)
+    layer_types = get_layer_types(layers)
+    stats, names_list = get_layer_weight_stats(model_in)
+    weighted_gradients = compute_gradients(names_list)
+    # The typical stat format is 2D array row0 - number of weight, row1 - sum of values
+    # Convert weighted gradients into 2D stats format
+    stat_weighted_grad = []
+    non_zero_stat_id = -1
+    non_zero_wg_id = -1
+    for k in range(len(stats)):
+        if len(stats[k]) == 0:
+            stat_weighted_grad.append([])
+            continue
+        non_zero_stat_id = non_zero_stat_id + 1
+        for m in range(non_zero_wg_id + 1, len(weighted_gradients)):
+            if len(weighted_gradients[m]) > 0:
+                non_zero_wg_id = m
+                break
+        array2D = np.zeros((2, len(weighted_gradients[non_zero_wg_id])))
+        array2D[0, :] = stats[k][0, :]
+        array2D[1, :] = stats[k][0, :] * weighted_gradients[non_zero_wg_id]
+        stat_weighted_grad.append(array2D)
+    quant_dict = create_detailed_quant_values(stat_weighted_grad, names_list)
+    qmodel = quantize_coreml_network(model_in, quant_dict)
+    qmodel.save('/Users/michaelko/Code/ngrok/checkpoints/toy/model_quant1.mlmodel')
+
+    check_toy_model('/Users/michaelko/Code/ngrok/checkpoints/toy/model_quant1.mlmodel',
+                    '/Users/michaelko/Code/ngrok/mnist/images')
+    # ---------------------------------------------------------------------------------------------------------------- #
+
+    # create_models()
+    # quantize_toy_model()
+    # check_models()
+    # prune_tutorial()
+    # quantize_toonify_models()
+
+    # '/Users/michaelko/Code/ngrok/checkpoints/toy/model_full.mlmodel'
+    # /Users/michaelko/Code/ngrok/checkpoints/toy/model_quant8.mlmodel
+
+    # check_toy_model('/Users/michaelko/Code/ngrok/checkpoints/toy/model_quant3.mlmodel',
+    #                 '/Users/michaelko/Code/ngrok/mnist/images')
 
