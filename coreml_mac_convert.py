@@ -74,7 +74,7 @@ def compare_models_1():
 def compare_models():
     img_folder = '/Users/michaelko/Code/ngrok/images_test'
     img_api_folder = '/Users/michaelko/Code/ngrok/images_test_res'
-    model_folder = '/Users/michaelko/Code/ngrok/checkpoints/label2city'
+    model_folder = '/Users/michaelko/Code/ngrok/checkpoints/final_model'
     res_dir = '/Users/michaelko/Code/ngrok/res'
 
     web_dir = os.path.join(res_dir, 'comparison')
@@ -127,7 +127,13 @@ def compare_models():
                                 (model_files[1][:-7] + img_name, results[1]),
                                 (model_files[2][:-7] + img_name, results[2]),
                                 (model_files[3][:-7] + img_name, results[3]),
-                                (model_files[4][:-7] + img_name, results[4])])
+                                (model_files[4][:-7] + img_name, results[4]),
+                               (model_files[5][:-7] + img_name, results[5]),
+                               (model_files[6][:-7] + img_name, results[6]),
+                               (model_files[7][:-7] + img_name, results[7]),
+                               (model_files[8][:-7] + img_name, results[8]),
+                               (model_files[9][:-7] + img_name, results[9]),
+                               (model_files[10][:-7] + img_name, results[10])])
 
         # visuals = OrderedDict([(model_files[0][:-7] + img_name, results[0]),
         #                        (model_files[1][:-7] + img_name, results[1]),
@@ -282,7 +288,7 @@ if __name__ == '__main__':
 
     # Get input parameters
     # convert_32_to_16_1()
-    compare_models1()
+    compare_models()
     # single_test()
     # build_web_page()
     # pruning_example()

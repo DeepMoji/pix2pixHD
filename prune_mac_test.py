@@ -1,5 +1,6 @@
 import coremltools as ct
 from coremltools.models.neural_network import quantization_utils
+from coremltools.models.neural_network import optimization_utils
 import coremltools.models.neural_network
 from util import html
 import util.util as util
@@ -21,6 +22,7 @@ import torch.nn as nn
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + '/code')
 from minimalml.mkml_quantization import quantize_coreml_network
+# from minimalml.quantization_utils_copy import quantize_weights1
 from minimalml.mkml_model_utilities import get_layer_weight_stats
 from minimalml.mkml_model_utilities import create_detailed_quant_values
 from minimalml.mkml_model_utilities import prunableLayers
@@ -324,21 +326,6 @@ def quantize_toy_model():
     check_toy_model('/Users/michaelko/Code/ngrok/checkpoints/toy/model_quant1.mlmodel',
                     '/Users/michaelko/Code/ngrok/mnist/images')
 
-def quantize_toonify_models():
-    # model_name = '/Users/michaelko/Code/ngrok/checkpoints/label2city/160_net_G_512.mlmodel'
-    model_name = '/home/ubuntu/code/pix2pixHD/checkpoints/label2city_512p/100_net_G_512.mlmodel'
-    # Get layers
-    model = ct.models.MLModel(model_name)
-    layers = get_layers(model)[0]
-    stats, names_list = get_layer_weight_stats(model)
-    quant_dict = create_detailed_quant_values(stats, names_list)
-    for layer in layers:
-        pass
-        print('1')
-    pass
-
-    print('Done')
-
 def prune_tutorial():
     network = Net()
     # network = SimpleNet()
@@ -375,40 +362,64 @@ def prune_tutorial():
 
     pass
 
+def quantize_toonify_models(method):
+
+    if method == 'weight_based':
+        print('Start weight based pruning')
+        model_in = ct.models.MLModel('/Users/michaelko/Code/ngrok/checkpoints/final_model/100_net_G_512.mlmodel')
+        stats, names_list = get_layer_weight_stats(model_in)
+        quant_dict = create_detailed_quant_values(stats, names_list, 0.1785, 3, 7)
+        qmodel = quantize_coreml_network(model_in, quant_dict)
+        qmodel.save('/Users/michaelko/Code/ngrok/checkpoints/label2city/modle_100_512_q14.mlmodel')
+
+        # Test
+
+    else:
+        print('Start gradient based pruning')
+
+    print('Done')
+
 if __name__ == '__main__':
     print('Pruning test')
     # train_loop()
 
     # ---------------------------------------------------------------------------------------------------------------- #
-    model_in = ct.models.MLModel('/Users/michaelko/Code/ngrok/checkpoints/toy/model_quant.mlmodel')
-    layers = get_layers(model_in)
-    layer_types = get_layer_types(layers)
-    stats, names_list = get_layer_weight_stats(model_in)
-    weighted_gradients = compute_gradients(names_list)
-    # The typical stat format is 2D array row0 - number of weight, row1 - sum of values
-    # Convert weighted gradients into 2D stats format
-    stat_weighted_grad = []
-    non_zero_stat_id = -1
-    non_zero_wg_id = -1
-    for k in range(len(stats)):
-        if len(stats[k]) == 0:
-            stat_weighted_grad.append([])
-            continue
-        non_zero_stat_id = non_zero_stat_id + 1
-        for m in range(non_zero_wg_id + 1, len(weighted_gradients)):
-            if len(weighted_gradients[m]) > 0:
-                non_zero_wg_id = m
-                break
-        array2D = np.zeros((2, len(weighted_gradients[non_zero_wg_id])))
-        array2D[0, :] = stats[k][0, :]
-        array2D[1, :] = stats[k][0, :] * weighted_gradients[non_zero_wg_id]
-        stat_weighted_grad.append(array2D)
-    quant_dict = create_detailed_quant_values(stat_weighted_grad, names_list)
-    qmodel = quantize_coreml_network(model_in, quant_dict)
-    qmodel.save('/Users/michaelko/Code/ngrok/checkpoints/toy/model_quant1.mlmodel')
+    # method = 'gradient_based'
+    method = 'weight_based'
+    quantize_toonify_models(method)
+    # ---------------------------------------------------------------------------------------------------------------- #
 
-    check_toy_model('/Users/michaelko/Code/ngrok/checkpoints/toy/model_quant1.mlmodel',
-                    '/Users/michaelko/Code/ngrok/mnist/images')
+    # ---------------------------------------------------------------------------------------------------------------- #
+    # model_in = ct.models.MLModel('/Users/michaelko/Code/ngrok/checkpoints/toy/model_quant.mlmodel')
+    # layers = get_layers(model_in)
+    # layer_types = get_layer_types(layers)
+    # stats, names_list = get_layer_weight_stats(model_in)
+    # # This approach is based on gradient weighted pruning. The simple pruning is in quantize_toy_model()
+    # weighted_gradients = compute_gradients(names_list)
+    # # The typical stat format is 2D array row0 - number of weight, row1 - sum of values
+    # # Convert weighted gradients into 2D stats format
+    # stat_weighted_grad = []
+    # non_zero_stat_id = -1
+    # non_zero_wg_id = -1
+    # for k in range(len(stats)):
+    #     if len(stats[k]) == 0:
+    #         stat_weighted_grad.append([])
+    #         continue
+    #     non_zero_stat_id = non_zero_stat_id + 1
+    #     for m in range(non_zero_wg_id + 1, len(weighted_gradients)):
+    #         if len(weighted_gradients[m]) > 0:
+    #             non_zero_wg_id = m
+    #             break
+    #     array2D = np.zeros((2, len(weighted_gradients[non_zero_wg_id])))
+    #     array2D[0, :] = stats[k][0, :]
+    #     array2D[1, :] = stats[k][0, :] * weighted_gradients[non_zero_wg_id]
+    #     stat_weighted_grad.append(array2D)
+    # quant_dict = create_detailed_quant_values(stat_weighted_grad, names_list)
+    # qmodel = quantize_coreml_network(model_in, quant_dict)
+    # qmodel.save('/Users/michaelko/Code/ngrok/checkpoints/toy/model_quant1.mlmodel')
+    #
+    # check_toy_model('/Users/michaelko/Code/ngrok/checkpoints/toy/model_quant1.mlmodel',
+    #                 '/Users/michaelko/Code/ngrok/mnist/images')
     # ---------------------------------------------------------------------------------------------------------------- #
 
     # create_models()
