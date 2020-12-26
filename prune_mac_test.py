@@ -264,31 +264,24 @@ def compute_toon_gradients(names_list):
 
     model = create_model(opt)
 
-    module_names = [k for k in model.netG.named_children()]
-    len(module_names[0][1]) # These are the names
-
-    cnt = 0
-    for param in model.netG.parameters():
-        cnt = cnt + 1
-        print(param)
-    print('There are params ', cnt)
-
-    cnt = 0
+    num_params = 0
     for param in model.netG.named_parameters():
-        cnt = cnt + 1
-        print(param)
+        num_params = num_params + 1
+        print(param[0])
 
-    print('There are params ', cnt)
+    print('There are params ', num_params) # There are 23 convolutions, for each weight and bias
 
-    for cnt, module in enumerate(model.netG.modules()):
-        print(cnt)
+    # for cnt, module in enumerate(model.netG.modules()):
+    #     print(cnt)
 
+    values = np.zeros(num_params)
     model.eval()
     for i, data in enumerate(dataset):
         losses, generated = model(Variable(data['label']), Variable(data['inst']),
                                   Variable(data['image']), Variable(data['feat']), infer=False)
 
-        # sum per device losses
+        # sum per device losses ['G_GAN', 'G_GAN_Feat', 'G_VGG', 'D_real', 'D_fake']
+        # retain_graph=True in loss function
         losses = [torch.mean(x) if not isinstance(x, int) else x for x in losses]
         loss_dict = dict(zip(model.loss_names, losses))
 
@@ -296,7 +289,19 @@ def compute_toon_gradients(names_list):
         loss_D = (loss_dict['D_fake'] + loss_dict['D_real']) * 0.5
         loss_G = loss_dict['G_GAN'] + loss_dict.get('G_GAN_Feat', 0) + loss_dict.get('G_VGG', 0)
 
-    print(1)
+        loss_G = loss_dict['G_GAN'] + loss_dict.get('G_GAN_Feat', 0) + loss_dict.get('G_VGG', 0)
+        loss_G.backward()
+
+        cnt = 0
+        for param in model.netG.named_parameters():
+            pass
+            # compute average gradient for every convolution parameter
+            values[cnt] = values[cnt] + np.mean(np.abs(param[1].detach() * param[1].grad.detach()).numpy())
+            cnt = cnt + 1
+
+    values = values / len(dataset)
+
+    return values
 
 
 def test(network, test_loader, test_losses):
@@ -423,6 +428,7 @@ def quantize_toonify_models(method):
     stats, names_list = get_layer_weight_stats(model_in)
 
     layer_types = get_layer_types(get_layers(model_in))
+    # mklayers = get_layers(model_in)[14:19]
     non__zero_type = []
     non__zero_val = []
     for layer, stat in zip(layer_types, stats):
@@ -431,17 +437,33 @@ def quantize_toonify_models(method):
         non__zero_type.append(layer)
         non__zero_val.append(np.sum(stat[0, :]))
 
-    if method == 'weight_based':
-        print('Start weight based pruning')
-        quant_dict = create_detailed_quant_values(stats, names_list, 0.1785, 3, 7)
-        qmodel = quantize_coreml_network(model_in, quant_dict)
-        qmodel.save('/Users/michaelko/Code/ngrok/checkpoints/label2city/modle_100_512_q14.mlmodel')
-
-        # Test
-
-    else:
+    if method != 'weight_based':
         print('Start gradient based pruning')
-        compute_toon_gradients(names_list)
+        # The function returns values of gradient multiplied by weight for convolutions
+        # There are 56 values for weight and for biases
+        grad_weight_vals = compute_toon_gradients(names_list)
+
+        # The next step is to combine it with stats
+        cur_grad = 0
+        for k in range(len(stats)):
+            if len(stats[k]) == 0:
+                continue
+            # We reached either conv or batch norm.
+            if len(stats[k]) != 2:
+                continue
+            if names_list[k][0] == 'bias':
+                stats[k][1, 0] = stats[k][0, 0] * grad_weight_vals[cur_grad + 1]
+                stats[k][1, 1] = stats[k][0, 1] * grad_weight_vals[cur_grad]
+            else:
+                stats[k][1, 0] = stats[k][0, 0] * grad_weight_vals[cur_grad]
+                stats[k][1, 1] = stats[k][0, 1] * grad_weight_vals[cur_grad + 1]
+
+        print(grad_weight_vals)
+        np.save('/Users/michaelko/Code/ngrok/checkpoints/grad_val', grad_weight_vals)
+    # quant_dict = create_detailed_quant_values(stats, names_list, 0.16, 6, 7)
+    # qmodel = quantize_coreml_network(model_in, quant_dict)
+    # qmodel.save('/Users/michaelko/Code/ngrok/checkpoints/label2city/modle_100_512_q30.mlmodel')
+
 
     print('Done')
 
