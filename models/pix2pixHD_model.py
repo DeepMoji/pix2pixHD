@@ -113,7 +113,10 @@ class Pix2PixHDModel(BaseModel):
 
     def encode_input(self, label_map, inst_map=None, real_image=None, feat_map=None, infer=False):             
         if self.opt.label_nc == 0:
-            input_label = label_map.data.cuda()
+            if len(self.gpu_ids) == 0 or (len(self.gpu_ids) == 1 and self.gpu_ids == -1):
+                input_label = label_map.data
+            else:
+                input_label = label_map.data.cuda()
         else:
             # create one-hot vector for label map 
             size = label_map.size()
@@ -132,7 +135,10 @@ class Pix2PixHDModel(BaseModel):
 
         # real images for training
         if real_image is not None:
-            real_image = Variable(real_image.data.cuda())
+            if self.gpu_ids == []:
+                real_image = Variable(real_image.data)
+            else:
+                real_image = Variable(real_image.data.cuda())
 
         # instance map for feature encoding
         if self.use_features:

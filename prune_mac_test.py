@@ -16,7 +16,13 @@ import torch
 import torchvision
 import torch.nn.functional as F
 import torch.nn as nn
+from torch.autograd import Variable
 
+from options.train_options import TrainOptions
+from options.test_options import TestOptions
+from data.data_loader import CreateDataLoader
+
+from models.models import create_model
 
 # from ../minimalml import quantize_coreml_network
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -243,6 +249,55 @@ def compute_gradients(names_list):
 
     return return_list
 
+def compute_toon_gradients(names_list):
+    # Get the number of non zero parts
+    non_zero_num = [1 if len(name) > 0 else 0 for name in names_list]
+
+    opt = TrainOptions().parse()
+    opt.nThreads = 1  # test code only supports nThreads = 1
+    opt.batchSize = 1  # test code only supports batchSize = 1
+    opt.serial_batches = True  # no shuffle
+    opt.no_flip = True  # no flip
+
+    data_loader = CreateDataLoader(opt)
+    dataset = data_loader.load_data()
+
+    model = create_model(opt)
+
+    module_names = [k for k in model.netG.named_children()]
+    len(module_names[0][1]) # These are the names
+
+    cnt = 0
+    for param in model.netG.parameters():
+        cnt = cnt + 1
+        print(param)
+    print('There are params ', cnt)
+
+    cnt = 0
+    for param in model.netG.named_parameters():
+        cnt = cnt + 1
+        print(param)
+
+    print('There are params ', cnt)
+
+    for cnt, module in enumerate(model.netG.modules()):
+        print(cnt)
+
+    model.eval()
+    for i, data in enumerate(dataset):
+        losses, generated = model(Variable(data['label']), Variable(data['inst']),
+                                  Variable(data['image']), Variable(data['feat']), infer=False)
+
+        # sum per device losses
+        losses = [torch.mean(x) if not isinstance(x, int) else x for x in losses]
+        loss_dict = dict(zip(model.loss_names, losses))
+
+        # calculate final loss scalar
+        loss_D = (loss_dict['D_fake'] + loss_dict['D_real']) * 0.5
+        loss_G = loss_dict['G_GAN'] + loss_dict.get('G_GAN_Feat', 0) + loss_dict.get('G_VGG', 0)
+
+    print(1)
+
 
 def test(network, test_loader, test_losses):
     network.eval()
@@ -364,10 +419,20 @@ def prune_tutorial():
 
 def quantize_toonify_models(method):
 
+    model_in = ct.models.MLModel('/Users/michaelko/Code/ngrok/checkpoints/final_model/100_net_G_512.mlmodel')
+    stats, names_list = get_layer_weight_stats(model_in)
+
+    layer_types = get_layer_types(get_layers(model_in))
+    non__zero_type = []
+    non__zero_val = []
+    for layer, stat in zip(layer_types, stats):
+        if stat == []:
+            continue
+        non__zero_type.append(layer)
+        non__zero_val.append(np.sum(stat[0, :]))
+
     if method == 'weight_based':
         print('Start weight based pruning')
-        model_in = ct.models.MLModel('/Users/michaelko/Code/ngrok/checkpoints/final_model/100_net_G_512.mlmodel')
-        stats, names_list = get_layer_weight_stats(model_in)
         quant_dict = create_detailed_quant_values(stats, names_list, 0.1785, 3, 7)
         qmodel = quantize_coreml_network(model_in, quant_dict)
         qmodel.save('/Users/michaelko/Code/ngrok/checkpoints/label2city/modle_100_512_q14.mlmodel')
@@ -376,6 +441,7 @@ def quantize_toonify_models(method):
 
     else:
         print('Start gradient based pruning')
+        compute_toon_gradients(names_list)
 
     print('Done')
 
@@ -384,8 +450,8 @@ if __name__ == '__main__':
     # train_loop()
 
     # ---------------------------------------------------------------------------------------------------------------- #
-    # method = 'gradient_based'
-    method = 'weight_based'
+    method = 'gradient_based'
+    # method = 'weight_based'
     quantize_toonify_models(method)
     # ---------------------------------------------------------------------------------------------------------------- #
 
