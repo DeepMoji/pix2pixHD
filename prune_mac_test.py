@@ -277,6 +277,7 @@ def compute_toon_gradients(names_list):
     values = np.zeros(num_params)
     model.eval()
     for i, data in enumerate(dataset):
+        print('Processing image ', i)
         losses, generated = model(Variable(data['label']), Variable(data['inst']),
                                   Variable(data['image']), Variable(data['feat']), infer=False)
 
@@ -286,9 +287,7 @@ def compute_toon_gradients(names_list):
         loss_dict = dict(zip(model.loss_names, losses))
 
         # calculate final loss scalar
-        loss_D = (loss_dict['D_fake'] + loss_dict['D_real']) * 0.5
-        loss_G = loss_dict['G_GAN'] + loss_dict.get('G_GAN_Feat', 0) + loss_dict.get('G_VGG', 0)
-
+        # loss_D = (loss_dict['D_fake'] + loss_dict['D_real']) * 0.5
         loss_G = loss_dict['G_GAN'] + loss_dict.get('G_GAN_Feat', 0) + loss_dict.get('G_VGG', 0)
         loss_G.backward()
 
@@ -298,6 +297,7 @@ def compute_toon_gradients(names_list):
             # compute average gradient for every convolution parameter
             values[cnt] = values[cnt] + np.mean(np.abs(param[1].detach() * param[1].grad.detach()).numpy())
             cnt = cnt + 1
+        print('Done ', cnt, 'parameters')
 
     values = values / len(dataset)
 
@@ -441,7 +441,8 @@ def quantize_toonify_models(method):
         print('Start gradient based pruning')
         # The function returns values of gradient multiplied by weight for convolutions
         # There are 56 values for weight and for biases
-        grad_weight_vals = compute_toon_gradients(names_list)
+        # grad_weight_vals = compute_toon_gradients(names_list)
+        grad_weight_vals = np.load('/Users/michaelko/Code/ngrok/checkpoints/grad_val.npy')
 
         # The next step is to combine it with stats
         cur_grad = 0
@@ -449,7 +450,9 @@ def quantize_toonify_models(method):
             if len(stats[k]) == 0:
                 continue
             # We reached either conv or batch norm.
-            if len(stats[k]) != 2:
+            if stats[k].shape[1] == 4:
+                # One of the questions is if to use the batch normalization for quantization or now
+                stats[k][1, 0] = stats[k][1, 0]
                 continue
             if names_list[k][0] == 'bias':
                 stats[k][1, 0] = stats[k][0, 0] * grad_weight_vals[cur_grad + 1]
@@ -458,12 +461,46 @@ def quantize_toonify_models(method):
                 stats[k][1, 0] = stats[k][0, 0] * grad_weight_vals[cur_grad]
                 stats[k][1, 1] = stats[k][0, 1] * grad_weight_vals[cur_grad + 1]
 
+            cur_grad = cur_grad + 2
+
+
         print(grad_weight_vals)
         np.save('/Users/michaelko/Code/ngrok/checkpoints/grad_val', grad_weight_vals)
-    # quant_dict = create_detailed_quant_values(stats, names_list, 0.16, 6, 7)
-    # qmodel = quantize_coreml_network(model_in, quant_dict)
-    # qmodel.save('/Users/michaelko/Code/ngrok/checkpoints/label2city/modle_100_512_q30.mlmodel')
 
+    print('Starting 1')
+    quant_dict = create_detailed_quant_values(stats, names_list, 0.0000320, 6, 7)
+    qmodel = quantize_coreml_network(model_in, quant_dict)
+    qmodel.save('/Users/michaelko/Code/ngrok/checkpoints/label2city/modle_100_512_q30.mlmodel')
+
+    print('Starting 2')
+    quant_dict = create_detailed_quant_values(stats, names_list, 0.0000330, 6, 7)
+    qmodel = quantize_coreml_network(model_in, quant_dict)
+    qmodel.save('/Users/michaelko/Code/ngrok/checkpoints/label2city/modle_100_512_q31.mlmodel')
+
+    print('Starting 3')
+    quant_dict = create_detailed_quant_values(stats, names_list, 0.0000340, 6, 7)
+    qmodel = quantize_coreml_network(model_in, quant_dict)
+    qmodel.save('/Users/michaelko/Code/ngrok/checkpoints/label2city/modle_100_512_q32.mlmodel')
+
+    print('Starting 4')
+    quant_dict = create_detailed_quant_values(stats, names_list, 0.0000370, 6, 7)
+    qmodel = quantize_coreml_network(model_in, quant_dict)
+    qmodel.save('/Users/michaelko/Code/ngrok/checkpoints/label2city/modle_100_512_q33.mlmodel')
+
+    print('Starting 5')
+    quant_dict = create_detailed_quant_values(stats, names_list, 0.000040, 6, 7)
+    qmodel = quantize_coreml_network(model_in, quant_dict)
+    qmodel.save('/Users/michaelko/Code/ngrok/checkpoints/label2city/modle_100_512_q34.mlmodel')
+
+    print('Starting 6')
+    quant_dict = create_detailed_quant_values(stats, names_list, 0.000050, 6, 7)
+    qmodel = quantize_coreml_network(model_in, quant_dict)
+    qmodel.save('/Users/michaelko/Code/ngrok/checkpoints/label2city/modle_100_512_q35.mlmodel')
+
+    print('Starting 7')
+    quant_dict = create_detailed_quant_values(stats, names_list, 0.000040, 5, 7)
+    qmodel = quantize_coreml_network(model_in, quant_dict)
+    qmodel.save('/Users/michaelko/Code/ngrok/checkpoints/label2city/modle_100_512_q36.mlmodel')
 
     print('Done')
 
