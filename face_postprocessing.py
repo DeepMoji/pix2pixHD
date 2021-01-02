@@ -90,7 +90,7 @@ def process_face(img_name):
 def sharpen_face(in_img):
     blurred = cv.GaussianBlur(in_img, (9, 9), 0)
     # sharpened = original + (original − blurred) × amount = original*(1 + amount) - blurred*amount
-    final_img = cv.addWeighted(in_img, 4.0, blurred, -3.0, 0)
+    final_img = cv.addWeighted(in_img, 3.0, blurred, -2.0, 0)
     return final_img
 
 def test_bilateral():

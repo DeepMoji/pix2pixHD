@@ -9,9 +9,9 @@ if __name__ == "__main__":
     print('Bring training data')
 
     # Go over the toons file and bring from the cloud the missing raw files
-    toons_dir = '/root/code/pix2pixHD/datasets/toonify/train_B' # should be input later
-    raw_dir = '/home/pix2pixHD/datasets/toonify/raw' # should be input later
-    aligned_dir = '/root/code/pix2pixHD/datasets/toonify/train_A/'  # should be input later
+    toons_dir = '/home/ubuntu/code/pix2pixHD/datasets/toonify/train_B' # should be input later
+    # raw_dir = '/home/pix2pixHD/datasets/toonify/raw' # should be input later
+    aligned_dir = '/home/ubuntu/code/pix2pixHD/datasets/toonify/train_A'  # should be input later
 
     # logging.basicConfig(level=logging.INFO, filename='/home/pix2pixHD/bring.log')
     # logging.info('start bringing')

@@ -69,8 +69,8 @@ def build_web_page():
 
 
 def compare_models():
-    img_folder = '/Users/michaelko/Code/ngrok/new_images'
-    img_api_folder = '/Users/michaelko/Code/ngrok/new_images_api'
+    img_folder = '/Users/michaelko/Code/ngrok/images_test'
+    img_api_folder = '/Users/michaelko/Code/ngrok/images_test_res'
     model_folder = '/Users/michaelko/Code/ngrok/checkpoints/model_tests'
     res_dir = '/Users/michaelko/Code/ngrok/res1'
 
@@ -115,15 +115,16 @@ def compare_models():
             rgb[:, :, 0] = 0.5*(b + 1.0)
             rgb[:, :, 1] = 0.5*(g + 1.0)
             rgb[:, :, 2] = 0.5*(r + 1.0)
+            results.append(rgb * 255)
             results.append(sharpen_face(rgb*255))
             # results.append(rgb*255)
 
-        # api_img_name = img_name[0:-7] + '.jpg'
-        api_img_name = img_name
+        api_img_name = img_name[0:-7] + '.jpg'
+        # api_img_name = img_name
         visuals = OrderedDict([('orig' + img_name,cv.cvtColor(np.array(img_orig), cv.COLOR_RGB2BGR)),
                                ('api' + img_name, cv.imread(join(img_api_folder, api_img_name))),
-                                (model_files[0][:-7] + img_name, results[0]),
-                                (model_files[1][:-7] + img_name, results[1])])
+                                ('epoch10_' + model_files[0][:-7] + img_name, results[0]),
+                                ('preprocessed' + model_files[0][:-7] + img_name, results[1])])
 
         # visuals = OrderedDict([(model_files[0][:-7] + img_name, results[0]),
         #                        (model_files[1][:-7] + img_name, results[1]),
