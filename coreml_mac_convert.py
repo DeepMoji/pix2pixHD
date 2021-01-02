@@ -67,15 +67,12 @@ def build_web_page():
 
     webpage.save()
 
-def compare_models_1():
-    pass
-
 
 def compare_models():
-    img_folder = '/Users/michaelko/Code/ngrok/images_test'
-    img_api_folder = '/Users/michaelko/Code/ngrok/images_test_res'
-    model_folder = '/Users/michaelko/Code/ngrok/checkpoints/final_model'
-    res_dir = '/Users/michaelko/Code/ngrok/res'
+    img_folder = '/Users/michaelko/Code/ngrok/new_images'
+    img_api_folder = '/Users/michaelko/Code/ngrok/new_images_api'
+    model_folder = '/Users/michaelko/Code/ngrok/checkpoints/model_tests'
+    res_dir = '/Users/michaelko/Code/ngrok/res1'
 
     web_dir = os.path.join(res_dir, 'comparison')
     webpage = html.HTML(web_dir, 'Comparison')
@@ -118,22 +115,15 @@ def compare_models():
             rgb[:, :, 0] = 0.5*(b + 1.0)
             rgb[:, :, 1] = 0.5*(g + 1.0)
             rgb[:, :, 2] = 0.5*(r + 1.0)
-            results.append(rgb*255)
+            results.append(sharpen_face(rgb*255))
+            # results.append(rgb*255)
 
-        api_img_name = img_name[0:-7] + '.jpg'
+        # api_img_name = img_name[0:-7] + '.jpg'
+        api_img_name = img_name
         visuals = OrderedDict([('orig' + img_name,cv.cvtColor(np.array(img_orig), cv.COLOR_RGB2BGR)),
                                ('api' + img_name, cv.imread(join(img_api_folder, api_img_name))),
                                 (model_files[0][:-7] + img_name, results[0]),
-                                (model_files[1][:-7] + img_name, results[1]),
-                                (model_files[2][:-7] + img_name, results[2]),
-                                (model_files[3][:-7] + img_name, results[3]),
-                                (model_files[4][:-7] + img_name, results[4]),
-                               (model_files[5][:-7] + img_name, results[5]),
-                               (model_files[6][:-7] + img_name, results[6]),
-                               (model_files[7][:-7] + img_name, results[7]),
-                               (model_files[8][:-7] + img_name, results[8]),
-                               (model_files[9][:-7] + img_name, results[9]),
-                               (model_files[10][:-7] + img_name, results[10])])
+                                (model_files[1][:-7] + img_name, results[1])])
 
         # visuals = OrderedDict([(model_files[0][:-7] + img_name, results[0]),
         #                        (model_files[1][:-7] + img_name, results[1]),

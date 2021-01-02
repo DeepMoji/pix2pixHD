@@ -93,14 +93,22 @@ def sharpen_face(in_img):
     final_img = cv.addWeighted(in_img, 4.0, blurred, -3.0, 0)
     return final_img
 
-if __name__ == '__main__':
+def test_bilateral():
+    img_name = '/Users/michaelko/Code/ngrok/res1/comparison/images/name_modle_100_512_q57.IMG_5878.jpgno.jpg'
+    img = cv.imread(img_name)
+    sharpen_face(img)
     pass
-    img_name = '/Users/michaelko/Code/ngrok/images_test_res/47023.jpg'
-    out_img_name = '/Users/michaelko/Downloads/slow_toon.jpg'
 
-    in_img = cv.imread(img_name)
 
-    process_face(img_name)
+if __name__ == '__main__':
+    test_bilateral()
 
-    final_img = sharpen_face(in_img)
-    cv.imwrite(out_img_name, final_img)
+    # img_name = '/Users/michaelko/Code/ngrok/images_test_res/47023.jpg'
+    # out_img_name = '/Users/michaelko/Downloads/slow_toon.jpg'
+    #
+    # in_img = cv.imread(img_name)
+    #
+    # process_face(img_name)
+    #
+    # final_img = sharpen_face(in_img)
+    # cv.imwrite(out_img_name, final_img)
