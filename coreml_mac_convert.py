@@ -211,14 +211,22 @@ def compare_models1():
 
 def single_test():
     pass
-    img_name = '/Users/michaelko/Downloads/test_photo.png'
-    model_name = '/Users/michaelko/Code/ngrok/checkpoints/label2city/20_net_G_1024.mlmodel'
+    img_name = '/Users/michaelko/Code/ngrok/images_test/47032_01.png'
+    model_name = '/Users/michaelko/Code/ngrok/checkpoints/model_tests/1_net_G_512.mlmodel'
     model = ct.models.MLModel(model_name)
 
     desc = model.get_spec().description
     # spec.WhichOneof()
 
-    img = Image.open(img_name)
+    # img = Image.open(img_name)
+    img = cv.imread(img_name)
+    # img = 0.8*img + np.random.normal(loc=0, scale=15, size=img.shape)
+    # img[img > 255] = 255
+    # img[img < 0] = 0
+    # img = np.uint8(img)
+    cv.imwrite('/Users/michaelko/Downloads/test_photo_35o_1024.png', img)
+    # img = img + np.random.
+    img = Image.fromarray(cv.cvtColor(img, cv.COLOR_BGR2RGB))
     img = img.resize((desc.input[0].type.imageType.height, desc.input[0].type.imageType.width))
 
     res = model.predict({'image_input': img})
@@ -230,7 +238,7 @@ def single_test():
     rgb[:, :, 1] = 0.5 * (g + 1.0)
     rgb[:, :, 2] = 0.5 * (r + 1.0)
 
-    cv.imwrite('/Users/michaelko/Downloads/test_photo_20_1024.png', 255*rgb)
+    cv.imwrite('/Users/michaelko/Downloads/test_photo_35_1024.png', 255*rgb)
 
 
 # class LeNet(nn.Module):
@@ -279,8 +287,8 @@ if __name__ == '__main__':
 
     # Get input parameters
     # convert_32_to_16_1()
-    compare_models()
-    # single_test()
+    # compare_models()
+    single_test()
     # build_web_page()
     # pruning_example()
 
